@@ -1,7 +1,4 @@
 import re, string
-from PMS import *
-from PMS.Objects import *
-from PMS.Shortcuts import *
 
 BM_PREFIX        = '/video/billmoyers'
 BM_ROOT          = 'http://www.pbs.org'
@@ -120,7 +117,7 @@ def Search(sender, query, page=1):
 
 ####################################################################################################
 def PlayVideo(sender, url):
-  page = HTTP.Request(url)
+  page = HTTP.Request(url).content
   match = re.search("addVariable\(\"file\", \"(.*flv)\"\);", page)
   video_url = BM_ROOT + match.group(1)
   return Redirect(video_url)
