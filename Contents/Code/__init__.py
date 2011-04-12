@@ -15,10 +15,13 @@ CACHE_INTERVAL = 3600*8
 def Start():
   Plugin.AddPrefixHandler(BM_PREFIX, MainMenu, 'Bill Moyers Journal', 'icon-default.jpg', 'art-default.jpg')
   Plugin.AddViewGroup("Details", viewMode="InfoList", mediaType="items")
+  Plugin.AddViewGroup("List", viewMode="List", mediaType="items")
+
   MediaContainer.title1 = 'Bill Moyers Journal'
   MediaContainer.content = 'Items'
   MediaContainer.art = R('art-default.jpg')
-  HTTP.SetCacheTime(CACHE_INTERVAL)
+  DirectoryItem.thumb = R('icon-default.jpg')
+  HTTP.CacheTime = CACHE_INTERVAL
 
 ####################################################################################################
 def UpdateCache():
@@ -28,7 +31,7 @@ def UpdateCache():
   
 ####################################################################################################
 def MainMenu():
-  dir = MediaContainer()
+  dir = MediaContainer(viewGroup='List')
   dir.Append(Function(DirectoryItem(GetPodcast, title="All Videos")))
   #dir.Append(Function(DirectoryItem(GetRecentVideos, title="Archive")))
   dir.Append(Function(DirectoryItem(GetTopics,       title="By Topic")))
@@ -59,7 +62,7 @@ def GetRecentVideos(sender, page=0, url=BM_ARCHIVES):
   date = ''
   video_url = 'http://www-tc.pbs.org/moyers/journal/%s/images/vid%s_big.jpg'
   
-  for div in XML.ElementFromURL(url, True, errors='ignore').xpath('//div'):
+  for div in HTML.ElementFromURL(url, errors='ignore').xpath('//div'):
     id = div.get('id')
     if id == 'date2':
       date = div.text
@@ -76,32 +79,34 @@ def GetRecentVideos(sender, page=0, url=BM_ARCHIVES):
         if mm.get('href').find('watch') != -1:
           key = mm.get('href')
           match = re.search("http://www.pbs.org/moyers/journal/(.*)/watch(.*).html", key)
-          thumb_key = match.group(1)
-          video_index = match.group(2)
-          if len(video_index) == 0:
-            video_index = "1"
+          try:
+            thumb_key = match.group(1)
+            video_index = match.group(2)
+            if len(video_index) == 0:
+              video_index = "1"
             
-          if video_url.find('%') != -1:
-            thumb = video_url % (thumb_key, video_index)
-          else:
-            thumb = video_url
-          
+            if video_url.find('%') != -1:
+              thumb = video_url % (thumb_key, video_index)
+            else:
+              thumb = video_url
+          except:
+            thumb = ''
           break
         
       if key:
         title = div.find('a').text
         subtitle = date
         summary = [a for a in div.itertext()][1]
-        dir.Append(Function(VideoItem(PlayVideo, title=title, subtitle=subtitle, summary=summary, thumb=thumb), url=key))
+        dir.Append(Function(VideoItem(PlayVideo, title=title, subtitle=subtitle, summary=summary, thumb=Function(Thumb,url=thumb)), url=key))
   
   return dir
   
 ####################################################################################################
 def GetTopics(sender):
-  dir = MediaContainer(title2='Topics')
+  dir = MediaContainer(viewGroup='List',title2='Topics')
   
   values = []
-  for topic in XML.ElementFromURL(BM_TOPICS, True).xpath('//input[@type="checkbox"]'):
+  for topic in HTML.ElementFromURL(BM_TOPICS).xpath('//input[@type="checkbox"]'):
     values.append(topic.get('value'))
     
   values.sort()
@@ -110,7 +115,16 @@ def GetTopics(sender):
     dir.Append(Function(DirectoryItem(GetRecentVideos, title=string.capwords(value)), url=url))
   
   return dir
+  
+####################################################################################################
 
+def Thumb(url):
+  try:
+    data = HTTP.Request(url, cacheTime=CACHE_1WEEK).content
+    return DataObject(data, 'image/jpeg')
+  except:
+    return Redirect(R("icon-default.png"))
+  
 ####################################################################################################
 def Search(sender, query, page=1):
   return GetTopicMenu(sender, url=BM_SEARCH+query.replace(' ','+'))
